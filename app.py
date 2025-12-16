@@ -3,9 +3,7 @@ import os
 from dotenv import load_dotenv
 from PIL import Image
 import io
-from pathlib import Path
-import tempfile
-from typing import Optional, Dict, Any
+from typing import Optional
 
 # LangChain imports
 from langchain_openai import ChatOpenAI
@@ -232,7 +230,9 @@ def process_image_with_vision(image_bytes: bytes, doc_type: str, llm, provider: 
         genai.configure(api_key=api_key_to_use)
         
         # Use the generative AI SDK directly for vision
-        model = genai.GenerativeModel('gemini-1.5-flash')  # Use a reliable model
+        # Map model names to ensure compatibility
+        model_name = llm.model if hasattr(llm, 'model') else 'gemini-1.5-flash'
+        model = genai.GenerativeModel(model_name)
         
         # Create image part
         from PIL import Image

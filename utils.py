@@ -2,7 +2,6 @@
 Utility functions for OCR Agent application
 """
 
-import json
 from typing import Dict, Any, List
 from datetime import datetime
 
