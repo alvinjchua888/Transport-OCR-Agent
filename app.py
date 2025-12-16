@@ -220,21 +220,29 @@ def process_image_with_vision(image_bytes: bytes, doc_type: str, llm, provider: 
         return response.content
     else:
         # Gemini format - using the vision model
-        from langchain_google_genai import ChatGoogleGenerativeAI
         import google.generativeai as genai
         
-        genai.configure(api_key=llm.google_api_key)
+        # Get API key from llm instance
+        if hasattr(llm, 'google_api_key'):
+            api_key_to_use = llm.google_api_key
+        else:
+            # Fallback to the api_key from environment or parameter
+            api_key_to_use = os.getenv("GOOGLE_API_KEY", "")
+        
+        genai.configure(api_key=api_key_to_use)
         
         # Use the generative AI SDK directly for vision
-        model = genai.GenerativeModel(llm.model)
-        image_parts = [
-            {
-                "mime_type": "image/jpeg",
-                "data": image_base64
-            }
-        ]
+        model = genai.GenerativeModel('gemini-1.5-flash')  # Use a reliable model
         
-        response = model.generate_content([prompt_text, image_parts[0]])
+        # Create image part
+        from PIL import Image
+        import io
+        
+        # Convert base64 back to image
+        image_data = base64.b64decode(image_base64)
+        image = Image.open(io.BytesIO(image_data))
+        
+        response = model.generate_content([prompt_text, image])
         return response.text
 
 
