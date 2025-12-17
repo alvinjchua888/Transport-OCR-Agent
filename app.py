@@ -4,12 +4,17 @@ from dotenv import load_dotenv
 from PIL import Image
 import io
 from typing import Optional
+from datetime import datetime
+import json
 
 # LangChain imports
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema import HumanMessage
+
+# Supabase imports
+from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
@@ -78,14 +83,70 @@ with st.sidebar:
     )
     
     st.markdown("---")
+    
+    # Supabase Configuration
+    st.header("💾 Database Configuration")
+    enable_db = st.checkbox(
+        "Enable Supabase Storage",
+        value=False,
+        help="Save extracted entities to Supabase database"
+    )
+    
+    if enable_db:
+        supabase_url = st.text_input(
+            "Supabase URL",
+            type="default",
+            value=os.getenv("SUPABASE_URL", ""),
+            help="Your Supabase project URL"
+        )
+        supabase_key = st.text_input(
+            "Supabase API Key",
+            type="password",
+            value=os.getenv("SUPABASE_KEY", ""),
+            help="Your Supabase anon/public API key"
+        )
+        
+        table_name = st.text_input(
+            "Table Name",
+            value="ocr_documents",
+            help="Name of the Supabase table to store extracted data"
+        )
+    else:
+        supabase_url = ""
+        supabase_key = ""
+        table_name = "ocr_documents"
+    
+    st.markdown("---")
     st.markdown("""
     ### 📝 Instructions
     1. Select your AI provider
     2. Enter your API key
     3. Choose document type
-    4. Upload your document
-    5. Click 'Extract Entities'
+    4. (Optional) Enable Supabase storage
+    5. Upload your document
+    6. Click 'Extract Entities'
     """)
+
+
+def get_supabase_client(url: str, key: str) -> Optional[Client]:
+    """Initialize Supabase client."""
+    try:
+        if url and key:
+            return create_client(url, key)
+        return None
+    except Exception as e:
+        st.error(f"Error connecting to Supabase: {e}")
+        return None
+
+
+def save_to_supabase(client: Client, table_name: str, data: dict) -> bool:
+    """Save extracted entities to Supabase."""
+    try:
+        response = client.table(table_name).insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error saving to database: {e}")
+        return False
 
 
 def get_llm(provider: str, api_key: str, model: str):
@@ -346,6 +407,11 @@ with col2:
                         st.markdown("### Extracted Information:")
                         st.markdown(result)
                         
+                        # Store result in session state for saving to DB
+                        st.session_state['last_result'] = result
+                        st.session_state['last_filename'] = uploaded_file.name
+                        st.session_state['last_doc_type'] = actual_doc_type
+                        
                         # Download button for results
                         st.download_button(
                             label="💾 Download Results",
@@ -353,6 +419,31 @@ with col2:
                             file_name=f"extracted_entities_{uploaded_file.name}.txt",
                             mime="text/plain"
                         )
+                        
+                        # Save to Supabase button
+                        if enable_db:
+                            st.markdown("---")
+                            if st.button("💾 Save to Database", type="secondary"):
+                                if not supabase_url or not supabase_key:
+                                    st.error("⚠️ Please enter Supabase credentials in the sidebar!")
+                                else:
+                                    with st.spinner("Saving to database..."):
+                                        supabase_client = get_supabase_client(supabase_url, supabase_key)
+                                        if supabase_client:
+                                            # Prepare data for database
+                                            db_data = {
+                                                "document_type": actual_doc_type,
+                                                "filename": uploaded_file.name,
+                                                "extracted_text": result,
+                                                "ai_provider": api_provider,
+                                                "model_used": model_name,
+                                                "created_at": datetime.utcnow().isoformat()
+                                            }
+                                            
+                                            if save_to_supabase(supabase_client, table_name, db_data):
+                                                st.success("✅ Successfully saved to database!")
+                                            else:
+                                                st.error("❌ Failed to save to database.")
                     else:
                         st.error("❌ Failed to extract entities. Please try again.")
     else:
