@@ -54,7 +54,7 @@ with st.sidebar:
         )
         model_name = st.selectbox(
             "Model",
-            ["gpt-4-vision-preview", "gpt-4o", "gpt-4o-mini"],
+            ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
             help="Select the OpenAI model to use"
         )
     else:
@@ -192,6 +192,26 @@ Be thorough and extract all visible information from the document.
 
 
 def process_image_with_vision(image_bytes: bytes, doc_type: str, llm, provider: str) -> str:
+    """
+    Process an image using a vision-capable LLM to extract structured information.
+    This function handles image processing for both OpenAI and Google Gemini vision models,
+    converting image bytes to the appropriate format and invoking the respective AI service
+    to extract information based on the specified document type.
+    Args:
+        image_bytes (bytes): The raw bytes of the image to be processed.
+        doc_type (str): The type of document to extract information from (e.g., 'invoice', 'receipt').
+        llm: The language model instance to use for processing. Should be either an OpenAI or Gemini model.
+        provider (str): The AI provider name, either "OpenAI" or "Gemini". Determines the processing format.
+    Returns:
+        str: The extracted text content from the image as processed by the vision model.
+    Raises:
+        Exception: May raise exceptions related to API calls, image processing, or model invocation.
+    Notes:
+        - For OpenAI: Uses HumanMessage with multimodal content (text + image_url).
+        - For Gemini: Uses google.generativeai SDK directly with PIL Image objects.
+        - The function converts images to base64 for OpenAI and back to PIL Image for Gemini.
+        - Gemini API key is retrieved from the llm instance or environment variables.
+    """
     """Process image using vision-capable LLM."""
     import base64
     
